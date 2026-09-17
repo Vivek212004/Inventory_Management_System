@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Apache Maven 3.9.3'
+        jdk   'OpenJDK-21'
+    }
+
+    environment {
+        GIT_URL        = 'http://localhost:3000/jaya/MaterialService.git'
+        GIT_BRANCH     = 'main'
+        GIT_CRED_ID    = 'gitea-cred'
+
+        TOMCAT_URL     = 'http://localhost:8081'
+
+        // ✅ FIXED: SAME AS VENDOR STYLE CONTEXT DEPLOYMENT
+        TOMCAT_CONTEXT = '/material'
+
+        TOMCAT_CRED_ID = 'tomcat-cred'
+
+        WAR_FILE       = 'target/material.war'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}",
+                    credentialsId: "${GIT_CRED_ID}",
+                    url: "${GIT_URL}"
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                bat 'mvn test'
+            }
+
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "${TOMCAT_CRED_ID}",
+                    usernameVariable: 'TC_USER',
+                    passwordVariable: 'TC_PASS'
+                )]) {
+
+                    bat """
+                    curl -v -u %TC_USER%:%TC_PASS% ^
+                    -T "${WAR_FILE}" ^
+                    "%TOMCAT_URL%/manager/text/deploy?path=${TOMCAT_CONTEXT}&update=true"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ MaterialService deployed successfully"
+            echo "URL: ${TOMCAT_URL}${TOMCAT_CONTEXT}"
+        }
+
+        failure {
+            echo "❌ Build or Deployment Failed"
+        }
+    }
+}

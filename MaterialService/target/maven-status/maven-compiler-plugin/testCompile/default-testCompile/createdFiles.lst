@@ -1,0 +1,4 @@
+com\training\test\dao\MaterialCategoryDAOTest.class
+com\training\test\service\MaterialServiceTest.class
+com\training\test\MaterialServiceApplicationTests.class
+com\training\test\controller\MaterialControllerTest.class
